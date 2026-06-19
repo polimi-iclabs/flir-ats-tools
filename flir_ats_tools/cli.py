@@ -2,11 +2,11 @@
 
 Run from this folder and answer the prompts:
 
-    python example_read_ats.py
+    flir-ats-read
 
 or pass the decision explicitly after checking the file once:
 
-    python example_read_ats.py ../In718_ghosttracks_layer_20.ats --export 0 --preset-gap nan
+    flir-ats-read ../In718_ghosttracks_layer_20.ats --export 0 --preset-gap nan
 
 Object parameters are loaded from object_parameters.json by default. Use
 --object-parameters-config to point at another JSON file, and use individual
@@ -14,7 +14,7 @@ object-parameter flags to override that config for a single run.
 
 Exported frames are saved by default in:
 
-    ats_temperature_basic/exported_frames/
+    exported_frames/
 """
 
 import argparse
@@ -27,8 +27,8 @@ import numpy as np
 
 
 DEFAULT_ATS_PATH = Path(__file__).resolve().parent.parent / "In718_ghosttracks_layer_20.ats"
-DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "exported_frames"
-DEFAULT_OBJECT_PARAMETERS_PATH = Path(__file__).resolve().parent / "object_parameters.json"
+DEFAULT_OUTPUT_DIR = Path("exported_frames")
+DEFAULT_OBJECT_PARAMETERS_PATH = Path(__file__).resolve().parent / "utilities" / "object_parameters.json"
 EXPORT_ALL_PRESETS = "all-presets"
 EXPORT_SUPERFRAME = "superframe"
 PRESET_GAP_CHOICES = ("ask", "keep", "nan")
@@ -449,17 +449,30 @@ def main() -> None:
 
     # Import ATS-specific modules after argument parsing so `--help` works
     # even on machines where the FLIR/Teledyne fnv package is not installed yet.
-    from ats_reader import (
-        build_object_parameter_updates_from_mapping,
-        inspect_ats_file,
-        load_object_parameter_updates,
-        read_ats_file,
-    )
-    from temperature_exploration import (
-        extract_temperature_histories,
-        get_preset_gap_bounds,
-        mask_temperatures_between_presets,
-    )
+    if __package__:
+        from .utilities import (
+            build_object_parameter_updates_from_mapping,
+            inspect_ats_file,
+            load_object_parameter_updates,
+            read_ats_file,
+        )
+        from .analysis import (
+            extract_temperature_histories,
+            get_preset_gap_bounds,
+            mask_temperatures_between_presets,
+        )
+    else:
+        from utilities import (
+            build_object_parameter_updates_from_mapping,
+            inspect_ats_file,
+            load_object_parameter_updates,
+            read_ats_file,
+        )
+        from analysis import (
+            extract_temperature_histories,
+            get_preset_gap_bounds,
+            mask_temperatures_between_presets,
+        )
 
     object_parameters_config_path = args.object_parameters_config.expanduser()
     object_parameters = load_object_parameter_updates(object_parameters_config_path)

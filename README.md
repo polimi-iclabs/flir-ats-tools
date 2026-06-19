@@ -1,22 +1,31 @@
-# ats-utils: Python utilities for FLIR ATS thermal video files
+# flir-ats-tools: Python tools for FLIR ATS thermal video files
 
-Utilities for opening, reading, exporting, and visualizing thermal videos in FLIR ATS format.
+Utilities for opening, reading, exporting, and analyzing thermal videos in FLIR ATS format.
 
-The maintained workflow lives in `ats_temperature_basic/`. The `FLIR examples/` folder is kept separately with the original example-style scripts adapted from FLIR SDK workflows.
+The installable Python package is `flir_ats_tools`. Reader and SDK helpers live under `flir_ats_tools.utilities`; temperature-analysis helpers live under `flir_ats_tools.analysis`. The `FLIR examples/` folder is kept separately with the original example-style scripts adapted from FLIR SDK workflows.
 
 ## Repository Structure
 
 ```text
-ats-utils/
+flir-ats-tools/
+  pyproject.toml
+  setup.cfg
+  setup.py
   README.md
   LICENSE
-  environment.yaml
-  ats_temperature_basic/
-    object_parameters.json
-    ats_reader.py
-    example_read_ats.py
+  flir_ats_tools/
+    __init__.py
+    cli.py
+    utilities/
+      __init__.py
+      ats_reader.py
+      object_parameters.json
+    analysis/
+      __init__.py
+      temperature.py
+  notebooks/
     batch_import_ats_superframe_processing_visualization.ipynb
-    temperature_exploration.py
+    batch_import_ats_superframe_processing_visualization_v2.ipynb
   FLIR examples/
     min_and_max.py
     print_metadata.py
@@ -24,12 +33,14 @@ ats-utils/
 
 Generated outputs are ignored by git:
 
-- `ats_temperature_basic/exported_frames/`
-- `ats_temperature_basic/intensity_statistics_csv/`
+- `exported_frames/`
+- `intensity_statistics_csv/`
+- `notebooks/exported_frames/`
+- `notebooks/intensity_statistics_csv/`
 
 ## Requirements
 
-For `ats_temperature_basic/ats_reader.py`, the Python package requirements are:
+For `flir_ats_tools.utilities.ats_reader`, the Python package requirements are:
 
 - `numpy`
 - FLIR Science File SDK for Python, imported as `fnv`
@@ -38,33 +49,48 @@ The FLIR Science File SDK is not treated here as a normal conda/pip dependency. 
 
 https://flir.custhelp.com/app/answers/detail/a_id/3504/~/flir-science-file-sdk-for-python---getting-started
 
-## Command-Line Usage
+## Installation
 
-Run the basic reader interactively:
+Install this repository as a local editable package from the repository root:
 
 ```bash
-cd ats_temperature_basic
-python example_read_ats.py /path/to/video.ats
+python -m pip install -e .
+```
+
+The editable install exposes the `flir_ats_tools` package and installs the `flir-ats-read` command-line script. The package includes the default `object_parameters.json` config file.
+
+## Command-Line Usage
+
+After installing the package, run the reader interactively:
+
+```bash
+flir-ats-read /path/to/video.ats
+```
+
+Run the same CLI directly from the source tree when needed:
+
+```bash
+python -m flir_ats_tools.cli /path/to/video.ats
 ```
 
 Run non-interactively:
 
 ```bash
-python example_read_ats.py /path/to/video.ats --export 0 --preset-gap keep
-python example_read_ats.py /path/to/video.ats --export all-presets
-python example_read_ats.py /path/to/video.ats --export superframe --preset-gap nan
+flir-ats-read /path/to/video.ats --export 0 --preset-gap keep
+flir-ats-read /path/to/video.ats --export all-presets
+flir-ats-read /path/to/video.ats --export superframe --preset-gap nan
 ```
 
-By default the CLI loads object parameters from:
+By default the CLI loads object parameters from the package config:
 
 ```text
-ats_temperature_basic/object_parameters.json
+flir_ats_tools/utilities/object_parameters.json
 ```
 
 Use another config file when needed:
 
 ```bash
-python example_read_ats.py /path/to/video.ats \
+flir-ats-read /path/to/video.ats \
   --object-parameters-config /path/to/object_parameters.json \
   --export superframe
 ```
@@ -72,7 +98,7 @@ python example_read_ats.py /path/to/video.ats \
 You can still override individual config values for one run:
 
 ```bash
-python example_read_ats.py /path/to/video.ats \
+flir-ats-read /path/to/video.ats \
   --export superframe \
   --emissivity 0.95 \
   --reflected-temp-k 293.15 \
@@ -88,23 +114,22 @@ Fractions use `0..1` notation, not percentages. Temperatures are Kelvin.
 Open:
 
 ```text
-ats_temperature_basic/batch_import_ats_superframe_processing_visualization.ipynb
+notebooks/batch_import_ats_superframe_processing_visualization.ipynb
 ```
 
 Edit the first cell to set:
 
 - `ATS_FOLDER`: folder containing `.ats` files.
-- `CODE_DIR`: folder containing `ats_reader.py`.
 - `OBJECT_PARAMETERS_CONFIG`: reusable JSON config for object parameters.
 - `MAX_FILES`: optional limit while testing.
 - `MAX_FRAMES_PER_VIDEO`: optional limit on output superframes.
 
-The notebook imports data with `list_ats_files()`, `inspect_ats_file()`, and `read_ats_file()`. Notebook-specific analysis helpers, such as layer sorting and statistics tables, stay inside the notebook.
+The notebook imports data with `list_ats_files()`, `inspect_ats_file()`, and `read_ats_file()` from `flir_ats_tools.utilities`. Notebook-specific analysis helpers, such as layer sorting and statistics tables, stay inside the notebook.
 
 ## Library Usage
 
 ```python
-from ats_reader import (
+from flir_ats_tools.utilities import (
     inspect_ats_file,
     load_object_parameter_updates,
     read_ats_file,
@@ -132,6 +157,16 @@ frames = data.frames
 relative_time = data.relative_time
 ```
 
+Analysis helpers are available separately:
+
+```python
+from flir_ats_tools.analysis import (
+    extract_temperature_histories,
+    get_preset_gap_bounds,
+    mask_temperatures_between_presets,
+)
+```
+
 `read_mode` can be:
 
 - `preset`: read only frames matching `preset=<number>`.
@@ -144,7 +179,7 @@ Use `max_frames=<number>` to stop after that many output frames. In `read_mode="
 
 Object parameters must be applied before frames are read because the FLIR SDK uses them while converting radiometric data to temperatures. The reader defaults to `emissivity=1.0`; pass the other values when your measurement setup needs them.
 
-The reusable config lives at `ats_temperature_basic/object_parameters.json`:
+The reusable config lives at `flir_ats_tools/utilities/object_parameters.json`:
 
 ```json
 {
@@ -180,7 +215,7 @@ Not every SDK build or file exposes every object-parameter attribute. If a name 
 
 ## Exported `.npz` Contents
 
-`example_read_ats.py` writes a compressed NumPy file containing:
+`flir-ats-read` writes a compressed NumPy file containing:
 
 - `frames`: temperature stack shaped `(frames, rows, columns)`.
 - `relative_time`: seconds from the first valid frame.
@@ -205,7 +240,7 @@ with np.load("exported_frames/video_superframe_gap_nan.npz") as exported:
 
 ## Function Reference
 
-### `ats_reader.py`
+### `flir_ats_tools.utilities`
 
 - `ATSObjectParameters`: dataclass for supported object-parameter names.
 - `build_object_parameter_updates()`: validates object-parameter values.
@@ -218,17 +253,17 @@ with np.load("exported_frames/video_superframe_gap_nan.npz") as exported:
 - `apply_object_parameters()`: applies object parameters to `imager.object_parameters`.
 - `configure_imager()`: selects factory temperature in Kelvin when available, otherwise counts.
 
-### `temperature_exploration.py`
+### `flir_ats_tools.analysis`
 
 - `preset_ranges_overlap()`: returns `True` when adjacent preset temperature ranges overlap.
 - `get_preset_gap_bounds()`: finds temperature gaps between adjacent preset ranges.
 - `mask_temperatures_between_presets()`: replaces values inside preset gaps with `NaN`.
 - `extract_temperature_histories()`: extracts mean temperature histories around `(x, y)` coordinates.
 
-### `example_read_ats.py`
+### `flir_ats_tools.cli`
 
 Provides the command-line workflow for inspecting an ATS file, choosing an export mode, saving frames, and printing summary statistics.
 
 ### Notebook
 
-`batch_import_ats_superframe_processing_visualization.ipynb` provides an interactive batch workflow for loading superframes, computing notebook-specific statistics, exporting CSV summaries, plotting, and ROI visualization.
+`notebooks/batch_import_ats_superframe_processing_visualization.ipynb` provides an interactive batch workflow for loading superframes, computing notebook-specific statistics, exporting CSV summaries, plotting, and ROI visualization.
